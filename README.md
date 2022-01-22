@@ -8,6 +8,7 @@ Unit test utilities for [ddd-4-java](https://github.com/fuinorg/ddd-4-java) and 
 [![Java Development Kit 11](https://img.shields.io/badge/JDK-11-green.svg)](https://openjdk.java.net/projects/jdk/11/)
 
 ## In-memory Crypto Service
+The [InMemoryCryptoService](src/main/java/org/fuin/dddcqrsunit/InMemoryCryptoService.java) can be used for simple in-memory tests.
 
-
-[src/main/java/org/fuin/dddcqrsunit/InMemoryCryptoService.java](InMemoryCryptoService)
+## Vault Crypto Service
+The [VaultCryptoService](src/main/java/org/fuin/dddcqrsunit/VaultCryptoService.java) can be used for unit tests with the HashiCorp Vault [Transit Secrets Engine](https://www.vaultproject.io/docs/secrets/transit).
