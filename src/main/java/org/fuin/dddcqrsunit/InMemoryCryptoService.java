@@ -1,6 +1,5 @@
 package org.fuin.dddcqrsunit;
 
-import java.io.PrintStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -29,7 +28,6 @@ import org.fuin.ddd4j.ddd.DecryptionFailedException;
 import org.fuin.ddd4j.ddd.DuplicateEncryptionKeyIdException;
 import org.fuin.ddd4j.ddd.EncryptedData;
 import org.fuin.ddd4j.ddd.EncryptedDataService;
-import org.fuin.ddd4j.ddd.EncryptionIvVersionUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyIdUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyVersionUnknownException;
 import org.fuin.utils4j.Utils4J;
@@ -47,9 +45,7 @@ public final class InMemoryCryptoService implements EncryptedDataService {
 
     private Set<String> keyIds;
 
-    private Map<String, Map<Integer, SecretKey>> secretKeys;
-
-    private Map<String, Map<Integer, IvParameterSpec>> ivParameterSpecs;
+    private Map<String, Map<Integer, Key>> keys;
 
     /**
      * Default constructor.
@@ -57,8 +53,7 @@ public final class InMemoryCryptoService implements EncryptedDataService {
     public InMemoryCryptoService() {
         super();
         this.keyIds = new HashSet<>();
-        this.secretKeys = new HashMap<>();
-        this.ivParameterSpecs = new HashMap<>();
+        this.keys = new HashMap<>();
     }
 
     /**
@@ -72,60 +67,14 @@ public final class InMemoryCryptoService implements EncryptedDataService {
      *            Salt to use for key creation.
      */
     private void createEntry(final String keyId, final char[] pw, final byte[] salt) {
-        nextSecretKeyIntern(keyId, pw, salt);
-        nextIvParameterSpecIntern(keyId);
+        nextKey(keyId, pw, salt);
         keyIds.add(keyId);
     }
 
-    private int nextSecretKeyIntern(final String keyId, final char[] pw, final byte[] salt) {
-        final Map<Integer, SecretKey> keyVersions = secretKeys.computeIfAbsent(keyId, k -> new HashMap<>());
+    private int nextKey(final String keyId, final char[] pw, final byte[] salt) {
+        final Map<Integer, Key> keyVersions = keys.computeIfAbsent(keyId, k -> new HashMap<>());
         final int nextVersion = calculateNextVersion(keyVersions);
-        keyVersions.computeIfAbsent(nextVersion, k -> createSecretKey(pw, salt));
-        return nextVersion;
-    }
-
-    /**
-     * Creates a new IV version.
-     * 
-     * @param keyId
-     *            Unique key identifier.
-     * 
-     * @return Newly created IV version.
-     */
-    public int nextIvParameterSpec(final String keyId) {
-        if (!keyIds.contains(keyId)) {
-            throw new IllegalArgumentException("Unknown key: " + keyId);
-        }
-        return nextIvParameterSpecIntern(keyId);
-    }
-
-    /**
-     * Prints known key IDs and versions on the given stream.
-     * 
-     * @param out
-     *            Stream to print information to.
-     */
-    public void printStatus(final PrintStream out) {
-        keyIds.forEach(keyId -> {
-            out.println("KEY: " + keyId);
-
-            out.print("  SECRET KEYS: ");
-            final Map<Integer, SecretKey> keyVersions = secretKeys.get(keyId);
-            keyVersions.keySet().forEach(version -> out.print(version + ", "));
-            out.println();
-
-            out.print("  IV PARAM SPECS: ");
-            final Map<Integer, IvParameterSpec> ivVersions = ivParameterSpecs.get(keyId);
-            ivVersions.keySet().forEach(version -> out.print(version + ", "));
-            out.println();
-
-        });
-    }
-
-    private int nextIvParameterSpecIntern(final String keyId) {
-        final Map<Integer, IvParameterSpec> ivVersions = ivParameterSpecs.computeIfAbsent(keyId, k -> new HashMap<>());
-        final int nextVersion = calculateNextVersion(ivVersions);
-        ivVersions.computeIfAbsent(nextVersion, k -> createIvParameterSpec());
+        keyVersions.computeIfAbsent(nextVersion, k -> new Key(createSecretKey(pw, salt), createIvParameterSpec()));
         return nextVersion;
     }
 
@@ -183,7 +132,7 @@ public final class InMemoryCryptoService implements EncryptedDataService {
             throw new EncryptionKeyIdUnknownException(keyId);
         }
         final PwSalt result = verifyParams(params);
-        return "" + nextSecretKeyIntern(keyId, result.getPw(), result.getSalt());
+        return "" + nextKey(keyId, result.getPw(), result.getSalt());
     }
 
     @Override
@@ -192,7 +141,7 @@ public final class InMemoryCryptoService implements EncryptedDataService {
         if (!keyIds.contains(keyId)) {
             throw new EncryptionKeyIdUnknownException(keyId);
         }
-        final Map<Integer, SecretKey> keyVersions = secretKeys.get(keyId);
+        final Map<Integer, Key> keyVersions = keys.get(keyId);
         return "" + findLatestVersion(keyVersions);
     }
 
@@ -204,18 +153,17 @@ public final class InMemoryCryptoService implements EncryptedDataService {
             throw new EncryptionKeyIdUnknownException(keyId);
         }
 
-        final Map<Integer, SecretKey> keyVersions = secretKeys.get(keyId);
+        final Map<Integer, Key> keyVersions = keys.get(keyId);
         final int keyVersion = findLatestVersion(keyVersions);
-        final SecretKey secretKey = keyVersions.get(keyVersion);
-        final Map<Integer, IvParameterSpec> ivVersions = ivParameterSpecs.get(keyId);
-        final int ivVersion = findLatestVersion(ivVersions);
-        final IvParameterSpec ivParameterSpec = ivVersions.get(ivVersion);
+        final Key key = keyVersions.get(keyVersion);
+        final SecretKey secretKey = key.getSecretKey();
+        final IvParameterSpec ivParameterSpec = key.getIvParameterSpec();
 
         try {
             final Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParameterSpec);
             byte[] encryptedData = cipher.doFinal(data);
-            return new EncryptedData(keyId, "" + keyVersion, "" + ivVersion, dataType, contentType, encryptedData);
+            return new EncryptedData(keyId, "" + keyVersion, dataType, contentType, encryptedData);
         } catch (final NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException
                 | IllegalBlockSizeException | BadPaddingException ex) {
             throw new RuntimeException("Failed to encrypt data of type '" + dataType + "' with key '" + keyId + "'", ex);
@@ -224,26 +172,22 @@ public final class InMemoryCryptoService implements EncryptedDataService {
     }
 
     @Override
-    public @NotEmpty byte[] decrypt(@NotNull EncryptedData encryptedData) throws EncryptionKeyIdUnknownException,
-            EncryptionKeyVersionUnknownException, EncryptionIvVersionUnknownException, DecryptionFailedException {
+    public @NotEmpty byte[] decrypt(@NotNull EncryptedData encryptedData)
+            throws EncryptionKeyIdUnknownException, EncryptionKeyVersionUnknownException, DecryptionFailedException {
 
         final String keyId = encryptedData.getKeyId();
         if (!keyIds.contains(keyId)) {
             throw new EncryptionKeyIdUnknownException(keyId);
         }
 
-        final Map<Integer, SecretKey> keyVersions = secretKeys.get(keyId);
+        final Map<Integer, Key> keyVersions = keys.get(keyId);
         final int keyVersion = Integer.parseInt(encryptedData.getKeyVersion());
-        final SecretKey secretKey = keyVersions.get(keyVersion);
-        if (secretKey == null) {
+        final Key key = keyVersions.get(keyVersion);
+        if (key == null) {
             throw new EncryptionKeyVersionUnknownException(encryptedData.getKeyVersion());
         }
-        final Map<Integer, IvParameterSpec> ivVersions = ivParameterSpecs.get(keyId);
-        final int ivVersion = Integer.parseInt(encryptedData.getIvVersion());
-        final IvParameterSpec ivParameterSpec = ivVersions.get(ivVersion);
-        if (ivParameterSpec == null) {
-            throw new EncryptionIvVersionUnknownException(encryptedData.getIvVersion());
-        }
+        final SecretKey secretKey = key.getSecretKey();
+        final IvParameterSpec ivParameterSpec = key.getIvParameterSpec();
 
         try {
             final Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
@@ -299,6 +243,39 @@ public final class InMemoryCryptoService implements EncryptedDataService {
 
         public byte[] getSalt() {
             return salt;
+        }
+
+    }
+
+    /**
+     * Combines secret key and IV.
+     */
+    private static final class Key {
+
+        private final SecretKey secretKey;
+
+        private final IvParameterSpec ivParameterSpec;
+
+        /**
+         * Constructor with mandatory data.
+         * 
+         * @param secretKey
+         *            Secret key.
+         * @param ivParameterSpec
+         *            Initialization vector.
+         */
+        public Key(SecretKey secretKey, IvParameterSpec ivParameterSpec) {
+            super();
+            this.secretKey = secretKey;
+            this.ivParameterSpec = ivParameterSpec;
+        }
+
+        public SecretKey getSecretKey() {
+            return secretKey;
+        }
+
+        public IvParameterSpec getIvParameterSpec() {
+            return ivParameterSpec;
         }
 
     }

@@ -13,7 +13,6 @@ import org.fuin.ddd4j.ddd.DecryptionFailedException;
 import org.fuin.ddd4j.ddd.DuplicateEncryptionKeyIdException;
 import org.fuin.ddd4j.ddd.EncryptedData;
 import org.fuin.ddd4j.ddd.EncryptedDataService;
-import org.fuin.ddd4j.ddd.EncryptionIvVersionUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyIdUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyVersionUnknownException;
 
@@ -42,7 +41,7 @@ public class VaultCryptoService implements EncryptedDataService {
         // Needed to throw an exception in case of an non-existing key
         // Vault creates otherwise automatically a key when there is none
         getKeyVersion(keyId);
-        
+
         try {
             final String plainDataBase64 = Base64.getEncoder().encodeToString(data);
             final LogicalResponse response = vault.logical().write("transit/encrypt/" + keyId,
@@ -58,7 +57,7 @@ public class VaultCryptoService implements EncryptedDataService {
             final String withoutHeader = cipherText.substring(p + 1);
             final Integer keyVersion = response.getDataObject().getInt("key_version");
             final byte[] encryptedData = Base64.getDecoder().decode(withoutHeader.getBytes(StandardCharsets.US_ASCII));
-            return new EncryptedData(keyId, "" + keyVersion, null, dataType, contentType, encryptedData);
+            return new EncryptedData(keyId, "" + keyVersion, dataType, contentType, encryptedData);
         } catch (final VaultException ex) {
             throw new RuntimeException("Encryption failed", ex);
         }
@@ -66,13 +65,13 @@ public class VaultCryptoService implements EncryptedDataService {
     }
 
     @Override
-    public @NotEmpty byte[] decrypt(@NotNull EncryptedData encryptedData) throws EncryptionKeyIdUnknownException,
-            EncryptionKeyVersionUnknownException, EncryptionIvVersionUnknownException, DecryptionFailedException {
+    public @NotEmpty byte[] decrypt(@NotNull EncryptedData encryptedData)
+            throws EncryptionKeyIdUnknownException, EncryptionKeyVersionUnknownException, DecryptionFailedException {
 
         // Needed to throw an exception in case of an non-existing key
-        // Otherwise we have no way to know if the key or the version does not exist  
+        // Otherwise we have no way to know if the key or the version does not exist
         getKeyVersion(encryptedData.getKeyId());
-        
+
         try {
             final String cipherText = "vault:v" + encryptedData.getKeyVersion() + ":"
                     + Base64.getEncoder().encodeToString(encryptedData.getEncryptedData());

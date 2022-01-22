@@ -28,7 +28,6 @@ import org.fuin.ddd4j.ddd.DecryptionFailedException;
 import org.fuin.ddd4j.ddd.DuplicateEncryptionKeyIdException;
 import org.fuin.ddd4j.ddd.EncryptedData;
 import org.fuin.ddd4j.ddd.EncryptedDataService;
-import org.fuin.ddd4j.ddd.EncryptionIvVersionUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyIdUnknownException;
 import org.fuin.ddd4j.ddd.EncryptionKeyVersionUnknownException;
 import org.junit.jupiter.api.Test;
@@ -137,7 +136,7 @@ abstract class AbstractCryptoServiceTest {
 
     @Test
     final void testEncryptDecrypt() throws EncryptionKeyIdUnknownException, DuplicateEncryptionKeyIdException,
-            EncryptionKeyVersionUnknownException, EncryptionIvVersionUnknownException, DecryptionFailedException {
+            EncryptionKeyVersionUnknownException, DecryptionFailedException {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
@@ -167,8 +166,8 @@ abstract class AbstractCryptoServiceTest {
     }
 
     @Test
-    final void testEncryptUnknownKeyId() throws DuplicateEncryptionKeyIdException, EncryptionKeyVersionUnknownException,
-            EncryptionIvVersionUnknownException, DecryptionFailedException {
+    final void testEncryptUnknownKeyId()
+            throws DuplicateEncryptionKeyIdException, EncryptionKeyVersionUnknownException, DecryptionFailedException {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
@@ -189,11 +188,11 @@ abstract class AbstractCryptoServiceTest {
 
     @Test
     final void testDecryptUnknownKeyId() throws DuplicateEncryptionKeyIdException, EncryptionKeyVersionUnknownException,
-            EncryptionIvVersionUnknownException, DecryptionFailedException, EncryptionKeyIdUnknownException {
+            DecryptionFailedException, EncryptionKeyIdUnknownException {
 
         // PREPARE
         final EncryptedDataService testee = createTestee();
-        final EncryptedData encryptedData = new EncryptedData(UUID.randomUUID().toString(), "1", "1", "MyData", "text/plain", new byte[] { 0 });
+        final EncryptedData encryptedData = new EncryptedData(UUID.randomUUID().toString(), "1", "MyData", "text/plain", new byte[] { 0 });
 
         // TEST
         try {
@@ -206,8 +205,8 @@ abstract class AbstractCryptoServiceTest {
     }
 
     @Test
-    final void testDecryptUnknownVersion() throws EncryptionKeyIdUnknownException, DuplicateEncryptionKeyIdException,
-            EncryptionIvVersionUnknownException, DecryptionFailedException {
+    final void testDecryptUnknownVersion()
+            throws EncryptionKeyIdUnknownException, DuplicateEncryptionKeyIdException, DecryptionFailedException {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
@@ -218,8 +217,8 @@ abstract class AbstractCryptoServiceTest {
         final String contentType = "text/plain";
         final String dataType = "MyText";
         final EncryptedData encryptedData = testee.encrypt(keyId, dataType, contentType, plainText.getBytes(StandardCharsets.UTF_8));
-        final EncryptedData wrongData = new EncryptedData(encryptedData.getKeyId(), "2", encryptedData.getIvVersion(),
-                encryptedData.getDataType(), encryptedData.getContentType(), encryptedData.getEncryptedData());
+        final EncryptedData wrongData = new EncryptedData(encryptedData.getKeyId(), "2", encryptedData.getDataType(),
+                encryptedData.getContentType(), encryptedData.getEncryptedData());
 
         // TEST
         try {
