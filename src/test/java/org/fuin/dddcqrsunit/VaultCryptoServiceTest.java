@@ -1,7 +1,5 @@
 package org.fuin.dddcqrsunit;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.UUID;
 
 import org.fuin.ddd4j.ddd.EncryptedDataService;
@@ -25,16 +23,11 @@ public final class VaultCryptoServiceTest extends AbstractCryptoServiceTest {
             .withInitCommand("secrets enable transit");
 
     private static String url;
-    
+
     @BeforeAll
     final static void beforeClass() {
         url = "http://localhost:" + vaultContainer.getFirstMappedPort();
         System.out.println(url);
-    }
-    
-    @Override
-    protected Map<String, Object> getValidParams() {
-        return Collections.emptyMap();
     }
 
     @Override

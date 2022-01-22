@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.UUID;
 
 import org.fuin.ddd4j.ddd.DecryptionFailedException;
@@ -37,8 +36,11 @@ import org.junit.jupiter.api.Test;
  */
 abstract class AbstractCryptoServiceTest {
 
-    protected abstract Map<String, Object> getValidParams();
-
+    /**
+     * Creates an instance of the implementation to test.
+     * 
+     * @return Newly created instance.
+     */
     protected abstract EncryptedDataService createTestee();
 
     @Test
@@ -46,11 +48,10 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
 
         // TEST
-        testee.createKey(keyId, params);
+        testee.createKey(keyId);
 
         // VERIFY
         assertThat(testee.keyExists(keyId)).isTrue();
@@ -63,17 +64,16 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
         try {
-            testee.createKey(keyId, params);
+            testee.createKey(keyId);
         } catch (final DuplicateEncryptionKeyIdException ex) {
             throw new RuntimeException(ex);
         }
 
         // TEST
         try {
-            testee.createKey(keyId, params);
+            testee.createKey(keyId);
             fail("Expected exception");
         } catch (final DuplicateEncryptionKeyIdException ex) {
             assertThat(ex.getMessage()).isEqualTo("Duplicate keyId: " + keyId);
@@ -102,14 +102,13 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
-        testee.createKey(keyId, params);
+        testee.createKey(keyId);
         assertThat(testee.keyExists(keyId)).isTrue();
         assertThat(testee.getKeyVersion(keyId)).isEqualTo("1");
 
         // TEST
-        testee.rotateKey(keyId, params);
+        testee.rotateKey(keyId);
 
         // VERIFY
         assertThat(testee.getKeyVersion(keyId)).isEqualTo("2");
@@ -121,12 +120,11 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
 
         // TEST & VERIFY
         try {
-            testee.rotateKey(keyId, params);
+            testee.rotateKey(keyId);
             fail("Expected exception");
         } catch (final EncryptionKeyIdUnknownException ex) {
             assertThat(ex.getMessage()).isEqualTo("Unknown keyId: " + keyId);
@@ -140,9 +138,8 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
-        testee.createKey(keyId, params);
+        testee.createKey(keyId);
         final String plainText = "Hello, world!";
         final String contentType = "text/plain";
         final String dataType = "MyText";
@@ -210,9 +207,8 @@ abstract class AbstractCryptoServiceTest {
 
         // PREPARE
         final String keyId = UUID.randomUUID().toString();
-        final Map<String, Object> params = getValidParams();
         final EncryptedDataService testee = createTestee();
-        testee.createKey(keyId, params);
+        testee.createKey(keyId);
         final String plainText = "Hello, world!";
         final String contentType = "text/plain";
         final String dataType = "MyText";

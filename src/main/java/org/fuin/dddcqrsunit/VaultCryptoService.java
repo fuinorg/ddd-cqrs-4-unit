@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -106,7 +105,7 @@ public class VaultCryptoService implements EncryptedDataService {
     }
 
     @Override
-    public void createKey(@NotEmpty String keyId, Map<String, Object> params) throws DuplicateEncryptionKeyIdException {
+    public void createKey(@NotEmpty String keyId) throws DuplicateEncryptionKeyIdException {
         if (keyExists(keyId)) {
             throw new DuplicateEncryptionKeyIdException(keyId);
         }
@@ -121,7 +120,7 @@ public class VaultCryptoService implements EncryptedDataService {
     }
 
     @Override
-    public String rotateKey(@NotEmpty String keyId, Map<String, Object> params) throws EncryptionKeyIdUnknownException {
+    public String rotateKey(@NotEmpty String keyId) throws EncryptionKeyIdUnknownException {
         try {
             final LogicalResponse response = vault.logical().write("transit/keys/" + keyId + "/rotate", new HashMap<>());
             if (response.getRestResponse().getStatus() == 400) {

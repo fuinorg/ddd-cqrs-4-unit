@@ -4,8 +4,6 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -15,11 +13,11 @@ import java.util.Set;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -37,11 +35,15 @@ import org.fuin.utils4j.Utils4J;
  */
 public final class InMemoryCryptoService implements EncryptedDataService {
 
-    /** Key the hash map that has a byte array (byte[]) as value that contains the salt to use for key creation. */
-    public static final String PARAM_SALT = "salt";
+    private static final String ALGORITHM = "AES";
 
-    /** Key the hash map that has a character array (char[]) as value that contains the password to use for key creation. */
-    public static final String PARAM_PASSWORD = "password";
+    private static final int KEY_SIZE = 256;
+
+    private static final int GCM_IV_LENGTH = 12;
+
+    private static final int GCM_TAG_LENGTH = 16;
+
+    private static final String CIPHER_NAME = "AES/GCM/NoPadding";
 
     private Set<String> keyIds;
 
@@ -56,25 +58,10 @@ public final class InMemoryCryptoService implements EncryptedDataService {
         this.keys = new HashMap<>();
     }
 
-    /**
-     * Creates a new entry.
-     * 
-     * @param keyId
-     *            Unique key identifier.
-     * @param pw
-     *            Password to use for secret key creation.
-     * @param salt
-     *            Salt to use for key creation.
-     */
-    private void createEntry(final String keyId, final char[] pw, final byte[] salt) {
-        nextKey(keyId, pw, salt);
-        keyIds.add(keyId);
-    }
-
-    private int nextKey(final String keyId, final char[] pw, final byte[] salt) {
+    private int nextKey(final String keyId) {
         final Map<Integer, Key> keyVersions = keys.computeIfAbsent(keyId, k -> new HashMap<>());
         final int nextVersion = calculateNextVersion(keyVersions);
-        keyVersions.computeIfAbsent(nextVersion, k -> new Key(createSecretKey(pw, salt), createIvParameterSpec()));
+        keyVersions.computeIfAbsent(nextVersion, k -> new Key(createSecretKey(), createIvParameterSpec()));
         return nextVersion;
     }
 
@@ -95,17 +82,18 @@ public final class InMemoryCryptoService implements EncryptedDataService {
     }
 
     private static IvParameterSpec createIvParameterSpec() {
-        final byte[] ivBytes = new byte[16];
+        final byte[] ivBytes = new byte[GCM_IV_LENGTH];
         new SecureRandom().nextBytes(ivBytes);
         return new IvParameterSpec(ivBytes);
     }
 
-    private static SecretKey createSecretKey(final char[] pw, final byte[] salt) {
+    private static SecretKey createSecretKey() {
         try {
-            final SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            final KeySpec spec = new PBEKeySpec(pw, salt, 65536, 256);
-            return new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
-        } catch (final NoSuchAlgorithmException | InvalidKeySpecException ex) {
+            final KeyGenerator keyGenerator = KeyGenerator.getInstance(ALGORITHM);
+            keyGenerator.init(KEY_SIZE);
+            final SecretKey key = keyGenerator.generateKey();
+            return new SecretKeySpec(key.getEncoded(), "AES");
+        } catch (final NoSuchAlgorithmException ex) {
             throw new RuntimeException("Failed to create secret key", ex);
         }
     }
@@ -116,23 +104,23 @@ public final class InMemoryCryptoService implements EncryptedDataService {
     }
 
     @Override
-    public void createKey(@NotEmpty String keyId, Map<String, Object> params) throws DuplicateEncryptionKeyIdException {
+    public void createKey(@NotEmpty String keyId) throws DuplicateEncryptionKeyIdException {
         Utils4J.checkNotEmpty(keyId, keyId);
         if (keyIds.contains(keyId)) {
             throw new DuplicateEncryptionKeyIdException(keyId);
         }
-        final PwSalt result = verifyParams(params);
-        createEntry(keyId, result.getPw(), result.getSalt());
+        final String keyId1 = keyId;
+        nextKey(keyId1);
+        keyIds.add(keyId1);
     }
 
     @Override
-    public String rotateKey(@NotEmpty String keyId, Map<String, Object> params) throws EncryptionKeyIdUnknownException {
+    public String rotateKey(@NotEmpty String keyId) throws EncryptionKeyIdUnknownException {
         Utils4J.checkNotEmpty(keyId, keyId);
         if (!keyIds.contains(keyId)) {
             throw new EncryptionKeyIdUnknownException(keyId);
         }
-        final PwSalt result = verifyParams(params);
-        return "" + nextKey(keyId, result.getPw(), result.getSalt());
+        return "" + nextKey(keyId);
     }
 
     @Override
@@ -160,8 +148,9 @@ public final class InMemoryCryptoService implements EncryptedDataService {
         final IvParameterSpec ivParameterSpec = key.getIvParameterSpec();
 
         try {
-            final Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivParameterSpec);
+            final Cipher cipher = Cipher.getInstance(CIPHER_NAME);
+            final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, ivParameterSpec.getIV());
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmParameterSpec);
             byte[] encryptedData = cipher.doFinal(data);
             return new EncryptedData(keyId, "" + keyVersion, dataType, contentType, encryptedData);
         } catch (final NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | InvalidAlgorithmParameterException
@@ -190,59 +179,13 @@ public final class InMemoryCryptoService implements EncryptedDataService {
         final IvParameterSpec ivParameterSpec = key.getIvParameterSpec();
 
         try {
-            final Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5PADDING");
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivParameterSpec);
+            final Cipher cipher = Cipher.getInstance(CIPHER_NAME);
+            final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH * 8, ivParameterSpec.getIV());
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmParameterSpec);
             return cipher.doFinal(encryptedData.getEncryptedData());
         } catch (final InvalidKeyException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException
                 | NoSuchAlgorithmException | NoSuchPaddingException ex) {
-            throw new DecryptionFailedException();
-        }
-
-    }
-
-    private PwSalt verifyParams(final Map<String, Object> params) {
-        if (params == null || params.isEmpty()) {
-            throw new IllegalArgumentException("The implementation requires parameters, but got none");
-        }
-        final Object pwObj = params.get(PARAM_PASSWORD);
-        if (pwObj == null) {
-            throw new IllegalArgumentException("The argument '" + PARAM_PASSWORD + "' is required");
-        }
-        if (!(pwObj instanceof char[])) {
-            throw new IllegalArgumentException(
-                    "The argument '" + PARAM_PASSWORD + "' is expected to be of type 'char[]', but was: " + pwObj.getClass());
-        }
-        final char[] pw = (char[]) pwObj;
-        final Object saltObj = params.get(PARAM_SALT);
-        if (saltObj == null) {
-            throw new IllegalArgumentException("The argument '" + PARAM_SALT + "' is required");
-        }
-        if (!(saltObj instanceof byte[])) {
-            throw new IllegalArgumentException(
-                    "The argument '" + PARAM_SALT + "' is expected to be of type 'byte[]', but was: " + saltObj.getClass());
-        }
-        final byte[] salt = (byte[]) saltObj;
-        return new PwSalt(pw, salt);
-    }
-
-    private static final class PwSalt {
-
-        private final char[] pw;
-
-        private final byte[] salt;
-
-        public PwSalt(char[] pw, byte[] salt) {
-            super();
-            this.pw = pw;
-            this.salt = salt;
-        }
-
-        public char[] getPw() {
-            return pw;
-        }
-
-        public byte[] getSalt() {
-            return salt;
+            throw new DecryptionFailedException(ex);
         }
 
     }
