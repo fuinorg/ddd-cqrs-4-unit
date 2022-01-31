@@ -45,21 +45,25 @@
 			<version>5.1.0</version>
 		</dependency>
 
-		<!-- Test -->
-
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
 			<version>${junit.version}</version>
-			<scope>test</scope>
 		</dependency>
 
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-engine</artifactId>
 			<version>${junit.version}</version>
-			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<version>3.21.0</version>
+		</dependency>
+
+		<!-- Test -->
 
 		<dependency>
 			<groupId>org.testcontainers</groupId>
@@ -80,13 +84,6 @@
 			<groupId>org.testcontainers</groupId>
 			<artifactId>vault</artifactId>
 			<version>1.16.2</version>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.assertj</groupId>
-			<artifactId>assertj-core</artifactId>
-			<version>3.21.0</version>
 			<scope>test</scope>
 		</dependency>
 

@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Base test class for {@link EncryptedDataService} implementations.
  */
-abstract class AbstractCryptoServiceTest {
+public abstract class AbstractCryptoServiceTest {
 
     /**
      * Creates an instance of the implementation to test.
